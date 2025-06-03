@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   Building, 
@@ -15,6 +15,7 @@ import MainLayout from '../../components/layout/MainLayout';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import { assetService, type CreateAssetData } from '../../services/assetService';
 
 type AssetType = 'property' | 'vehicle' | 'investment' | 'other';
 
@@ -30,7 +31,6 @@ const AssetForm: React.FC = () => {
   const navigate = useNavigate();
   const isEditMode = !!id;
   
-  // State for form fields
   const [assetType, setAssetType] = useState<AssetType>('property');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -40,19 +40,23 @@ const AssetForm: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load asset data if in edit mode
-  React.useEffect(() => {
-    if (isEditMode) {
-      // In a real app, this would fetch the asset data from the API
-      // For now, we'll simulate it with mock data
-      setTimeout(() => {
-        setAssetType('property');
-        setName('Apartamento em São Paulo');
-        setDescription('Apartamento de 2 quartos no centro de São Paulo');
-        setValue('850000');
-        setAcquisitionDate('2020-06-15');
-      }, 500);
-    }
+  useEffect(() => {
+    const loadAsset = async () => {
+      if (isEditMode && id) {
+        try {
+          const asset = await assetService.getAssetById(id);
+          setAssetType(asset.type);
+          setName(asset.name);
+          setDescription(asset.description || '');
+          setValue(asset.value.toString());
+          setAcquisitionDate(asset.acquisitionDate);
+        } catch (err: any) {
+          setError(err.message || 'Failed to load asset');
+        }
+      }
+    };
+
+    loadAsset();
   }, [id, isEditMode]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -61,15 +65,24 @@ const AssetForm: React.FC = () => {
     try {
       setIsSubmitting(true);
       setError(null);
-      
-      // In a real app, this would make an API call to save the asset
-      // Simulate API call with timeout
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Navigate back to assets list
+
+      const assetData: CreateAssetData = {
+        name,
+        type: assetType,
+        value: parseFloat(value),
+        description,
+        acquisitionDate,
+      };
+
+      if (isEditMode && id) {
+        await assetService.updateAsset(id, assetData);
+      } else {
+        await assetService.createAsset(assetData);
+      }
+
       navigate('/assets');
     } catch (err: any) {
-      setError(err.message || 'Falha ao salvar o bem. Por favor, tente novamente.');
+      setError(err.response?.data?.message || err.message || 'Failed to save asset');
     } finally {
       setIsSubmitting(false);
     }
@@ -97,7 +110,6 @@ const AssetForm: React.FC = () => {
 
         <Card>
           <form onSubmit={handleSubmit}>
-            {/* Asset Type Selection */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Tipo de Bem
@@ -177,7 +189,6 @@ const AssetForm: React.FC = () => {
                 />
               </div>
 
-              {/* Document upload */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Documentos Comprobatórios
